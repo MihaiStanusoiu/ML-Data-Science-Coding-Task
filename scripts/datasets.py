@@ -102,7 +102,6 @@ class DatasetBuilder:
         train_idx, val_idx, test_idx: np.ndarray
         '''
         indices = np.arange(len(self.Y))
-        np.random.shuffle(indices)
         test_ratio = 1 - val_ratio - train_ratio
         train_split = int(train_ratio * len(self.Y))
         val_split = int((train_ratio + val_ratio) * len(self.Y))

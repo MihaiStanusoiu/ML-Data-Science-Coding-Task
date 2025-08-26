@@ -10,19 +10,26 @@ def analyze_pv_history(dataset: pd.DataFrame):
     # dataset.pv_history = dataset.pv_history[dataset.pv_history['time'].dt.hour.between(8, 16)]
 
 
-    # dataset.pv_history["month"] = dataset.pv_history["time"].dt.month
+    dataset["month"] = dataset["time"].dt.month
+    dataset["hour"] = dataset["time"].dt.hour
     pv_history_stats = compute_statistics(dataset['pv_generation'])
     plot_timestamped_data(data=dataset, title="PV Generation Data Distribution by Hour", x_key="hour",
                           y_key="pv_generation", stats=pv_history_stats)
-    # plot_timestamped_data(data=dataset.pv_history, title="PV Generation Data Distribution by Month", x_key="month",
-    #                       y_key="pv_generation", stats=pv_history_stats)
+    plot_timestamped_data(data=dataset, title="PV Generation Data Distribution by Month", x_key="month",
+                          y_key="pv_generation", stats=pv_history_stats)
 
 def analyze_weather_measurements(dataset: pd.DataFrame):
     stats = compute_statistics(dataset)
 
-    plot_timestamped_data(data=dataset, title="Global Horizontal Irradiation Measurement Data Distribution", x_key="hour", y_key="cglo", stats=stats)
-    plot_timestamped_data(data=dataset, title="Wind Speed Measurement Data Distribution", x_key="hour", y_key="ff", stats=stats)
-    plot_timestamped_data(data=dataset, title="Air Temperature Measurement Data Distribution", x_key="hour", y_key="tl", stats=stats)
+    dataset["month"] = dataset["time"].dt.month
+    dataset["hour"] = dataset["time"].dt.hour
+    plot_timestamped_data(data=dataset, title="Global Horizontal Irradiation Measurement Data Distribution Per Hour", x_key="hour", y_key="cglo", stats=stats)
+    plot_timestamped_data(data=dataset, title="Wind Speed Measurement Data Distribution Per Hour", x_key="hour", y_key="ff", stats=stats)
+    plot_timestamped_data(data=dataset, title="Air Temperature Measurement Data Distribution Per Hour", x_key="hour", y_key="tl", stats=stats)
+
+    plot_timestamped_data(data=dataset, title="Global Horizontal Irradiation Measurement Data Distribution Per Month", x_key="month", y_key="cglo", stats=stats)
+    plot_timestamped_data(data=dataset, title="Wind Speed Measurement Data Distribution Per Month", x_key="month", y_key="ff", stats=stats)
+    plot_timestamped_data(data=dataset, title="Air Temperature Measurement Data Distribution Per Month", x_key="month", y_key="tl", stats=stats)
 
 
 def plot_timestamped_data(data: pd.DataFrame, stats: pd.DataFrame, title: str, x_key: str, y_key: str) -> None:
@@ -59,8 +66,17 @@ def plot_predicted_actual(predictions: list, actual: list) -> None:
     plt.figure(figsize=(10, 6))
     plt.plot(predictions, label='Predicted', color='blue')
     plt.plot(actual, label='Actual', color='orange')
-    plt.xlabel('Time')
+    plt.xlabel('Epochs')
     plt.ylabel('PV Generation')
     plt.title('Predicted vs Actual PV Generation')
+    plt.legend()
+    plt.show()
+
+def plot_r2_scores(scores: list) -> None:
+    plt.figure(figsize=(10, 6))
+    plt.plot(scores, label='R² Score', color='green')
+    plt.xlabel('Epochs')
+    plt.ylabel('R² Score')
+    plt.title('R² Score over Epochs')
     plt.legend()
     plt.show()

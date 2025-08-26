@@ -14,11 +14,10 @@ class PVForecastModel(nn.Module):
         # self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
-        rnn_out, _ = self.lstm(x)
-        last_hidden = rnn_out[:, -1, :]
-        out = self.fc(last_hidden)
+        rnn_out, rnn_hidden = self.lstm(x)
+        out = self.fc(rnn_out)
         out = self.output_activation_fn(out)
-        return out
+        return out, rnn_hidden
 
     # def train_on(self, X, Y):
     #     self.train()

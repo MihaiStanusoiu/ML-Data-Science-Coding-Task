@@ -4,13 +4,13 @@ import os
 import numpy as np
 import torch
 
-from scripts.data_analysis import plot_train_val_loss, plot_predicted_actual
+from scripts.data_analysis import plot_train_val_loss, plot_predicted_actual, plot_r2_scores
 from scripts.datasets import DatasetBuilder
 from scripts.pv_generation import Trainer
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
     parser.add_argument('--seq_len', type=int, default=12, help='Sequence length for RNN input')
     parser.add_argument('--hidden_size', type=int, default=64, help='Number of hidden RNN units')
     parser.add_argument('--num_layers', type=int, default=1, help='Number of RNN layers')
@@ -44,6 +44,6 @@ if __name__ == '__main__':
     print(f"Training dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
-    trainer = Trainer(train_dataset=train_dataset, val_dataset=val_dataset, test_dataset=test_dataset, batch_size=args.batch_size, seq_len=args.seq_len, device=args.device, hidden_size=args.hidden_size, num_features=train_dataset.number_of_features, num_layers=args.num_layers, max_epochs=args.max_epochs, early_stopping=args.early_stopping)
-    errors, predicted, actual = trainer.test()
-    plot_predicted_actual(predicted, actual)
+    trainer = Trainer(dataset=dataset, train_dataset=train_dataset, val_dataset=val_dataset, test_dataset=test_dataset, batch_size=args.batch_size, seq_len=args.seq_len, device=args.device, hidden_size=args.hidden_size, num_features=dataset.number_of_features, num_layers=args.num_layers, max_epochs=args.max_epochs, early_stopping=args.early_stopping)
+    r2, mae, rmse = trainer.test()
+    print(f"Test R2: {r2:.4f}, MAE: {mae:.4f}, RMSE: {rmse:.4f}")

@@ -1,15 +1,17 @@
 import copy
+from math import sqrt
 
 import torch
 from torch.nn import MSELoss
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
+from torchmetrics import R2Score, MeanAbsoluteError, MeanSquaredError
 
 from models.pv_forecast_model import PVForecastModel
 from scripts.datasets import PVDataset
 
 
 class Trainer:
-    def __init__(self, train_dataset: PVDataset, val_dataset: PVDataset, test_dataset: PVDataset, batch_size: int, seq_len: int, hidden_size: int, num_features: int, num_layers: int, max_epochs: int, early_stopping: int, device: str, model_path: str = None):
+    def __init__(self, dataset: PVDataset, train_dataset: Subset, val_dataset: Subset, test_dataset: Subset, batch_size: int, seq_len: int, hidden_size: int, num_features: int, num_layers: int, max_epochs: int, early_stopping: int, device: str, model_path: str = None):
         self.batch_size = batch_size
         self.seq_len = seq_len
         self.hidden_size = hidden_size
@@ -30,10 +32,11 @@ class Trainer:
         else:
             self.model = model_factory()
 
+        self.dataset = dataset
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
-        self.train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=False)
+        self.train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True)
         self.validation_loader = DataLoader(self.val_dataset, batch_size=batch_size, shuffle=False)
         self.test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False)
 
@@ -63,7 +66,9 @@ class Trainer:
             for inputs, targets in self.train_loader:
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
-                outputs = self.model(inputs)
+                outputs, _ = self.model(inputs)
+                # use only last timestep
+                outputs = outputs[:, -1, :]
                 loss = self.loss_fn(outputs, targets)
                 # count += 1
                 epoch_loss += loss.item()
@@ -86,7 +91,9 @@ class Trainer:
                 for inputs, targets in self.validation_loader:
                     inputs = inputs.to(self.device)
                     targets = targets.to(self.device)
-                    outputs = self.model(inputs)
+                    outputs, _ = self.model(inputs)
+                    # use only last timestep
+                    outputs = outputs[:, -1, :]
                     loss += self.loss_fn(outputs, targets)
                     # count += 1
             loss /= len(self.validation_loader)
@@ -118,38 +125,31 @@ class Trainer:
     def test(self):
         self.model.eval()
 
-        errors = []
-        mean_predicted = []
-        mean_actual = []
+        all_preds = []
+        all_actuals = []
 
-        for epoch in range(self.max_epochs):
-            prediction_error = 0.0
-            predicted = 0.0
-            actual = 0.0
+        for inputs, targets in self.test_loader:
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+            outputs, _ = self.model(inputs)
+            # use only last timestep
+            outputs = outputs[:, -1, :]
 
-            for inputs, targets in self.test_loader:
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
-                outputs = self.model(inputs)
-                loss = self.loss_fn(outputs, targets)
+            predicted_unscaled = self.dataset.scalerY.inverse_transform(outputs.cpu().numpy())
+            actual_unscaled = self.dataset.scalerY.inverse_transform(targets)
 
-                # store mean actual and predicted values over batch size
-                predicted += outputs.cpu().numpy().mean().item()
-                actual += targets.cpu().numpy().mean()
+            all_preds.append(torch.tensor(predicted_unscaled))
+            all_actuals.append(torch.tensor(actual_unscaled))
 
-                # count += 1
-                prediction_error += loss.item()
-                # optimizer zero grad clears old gradients from the last step, called before backward
-                self.optimizer.zero_grad()
-                # loss backward computes the derivative of the loss w.r.t. the parameters
-                loss.backward()
-                # called after backward() but before optimizer.step() to control gradient magnitude.
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                # optimizer step causes the optimizer to take a step based on the gradients of the parameters.
-                self.optimizer.step()
+        # Concatenate all batch predictions and targets
+        all_preds_tensor = torch.cat(all_preds).to(self.device)
+        all_targets_tensor = torch.cat(all_actuals).to(self.device)
 
-            errors.append(prediction_error / len(self.test_loader))
-            mean_predicted.append(predicted / len(self.test_loader))
-            mean_actual.append(actual / len(self.test_loader))
+        r2 = R2Score()
+        mae = MeanAbsoluteError()
+        mse = MeanSquaredError()
 
-        return errors, mean_predicted, mean_actual
+        r2_val = r2(all_preds_tensor, all_targets_tensor).item()
+        mae_val = mae(all_preds_tensor, all_targets_tensor).item()
+        rmse_val = sqrt(mse(all_preds_tensor, all_targets_tensor).item())
+        return r2_val, mae_val, rmse_val

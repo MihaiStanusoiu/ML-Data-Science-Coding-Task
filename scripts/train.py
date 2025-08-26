@@ -45,6 +45,6 @@ if __name__ == '__main__':
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
 
-    trainer = Trainer(train_dataset=train_dataset, val_dataset=val_dataset, test_dataset=test_dataset, batch_size=args.batch_size, seq_len=args.seq_len, device=args.device, hidden_size=args.hidden_size, num_features=train_dataset.number_of_features, num_layers=args.num_layers, max_epochs=args.max_epochs, early_stopping=args.early_stopping)
+    trainer = Trainer(dataset=dataset, train_dataset=train_dataset, val_dataset=val_dataset, test_dataset=test_dataset, batch_size=args.batch_size, seq_len=args.seq_len, device=args.device, hidden_size=args.hidden_size, num_features=dataset.number_of_features, num_layers=args.num_layers, max_epochs=args.max_epochs, early_stopping=args.early_stopping)
     model, train_losses, val_losses = trainer.train()
     plot_train_val_loss(train_losses, val_losses)

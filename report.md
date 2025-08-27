@@ -44,3 +44,9 @@
   - Data cleaning systems from literature
   - Randomize train/val/test split. Currently the split is done chronologically, which leads to overfitting to a certain year interval.
   - Check train/test distribution skews
+
+## Usage
+- Install dependencies: `pip install -r requirements.txt`
+- Dataset analysis: `python scripts/datasets.py`
+- Train model: `python scripts/train.py`. Command line args are available
+- Evaluate model: `python scripts/test.py`. Command line args are available

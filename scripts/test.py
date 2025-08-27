@@ -6,6 +6,7 @@ Plots predictions vs actual values, computes eval metrics and prints them.
 
 import argparse
 import os
+import pickle
 
 import numpy as np
 
@@ -30,6 +31,15 @@ if __name__ == '__main__':
         seq_len=args.seq_len
     )
     dataset = dataset_builder.build_dataset()
+
+    # load scalers
+    if os.path.exists("../output/scalerX.pkl"):
+        with open("../output/scalerX.pkl", "rb") as f:
+            dataset.scalerX = pickle.load(f)
+
+    if os.path.exists("../output/scalerY.pkl"):
+        with open("../output/scalerY.pkl", "rb") as f:
+            dataset.scalerY = pickle.load(f)
 
     train_idx = val_idx = test_idx = None
     if os.path.exists("../data/train_idx.npy") and os.path.exists("../data/val_idx.npy") and os.path.exists(

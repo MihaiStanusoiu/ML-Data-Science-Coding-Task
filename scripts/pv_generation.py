@@ -1,4 +1,5 @@
 import copy
+import pickle
 from math import sqrt
 
 import torch
@@ -114,6 +115,10 @@ class Trainer:
                 min_val_loss = loss
                 best_weights = copy.deepcopy(self.model.state_dict())
                 torch.save(self.model.state_dict(), '../output/best_model.pth')
+                with open('../output/scalerX.pkl', 'wb') as f:
+                    pickle.dump(self.dataset.scalerX, f)
+                with open('../output/scalerY.pkl', 'wb') as f:
+                    pickle.dump(self.dataset.scalerY, f)
 
                 str_to_print += "\t*"
                 convergence_iterations = 0

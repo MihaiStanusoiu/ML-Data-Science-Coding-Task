@@ -1,9 +1,12 @@
+'''Training script for PV generation forecasting model.
+Script accepts various command-line arguments for configuration, including hyperparams.
+Saves the trained model and plots training/validation loss curves.
+'''
+
 import argparse
 import os
-from calendar import day_abbr
 
 import numpy as np
-import torch
 
 from scripts.data_analysis import plot_train_val_loss
 from scripts.datasets import DatasetBuilder
@@ -11,8 +14,10 @@ from scripts.pv_generation import Trainer
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--train_ratio', type=float, default=0.8, help='Ratio of data to use for training')
+    parser.add_argument('--val_ratio', type=float, default=0.1, help='Ratio of data to use for validation')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
-    parser.add_argument('--seq_len', type=int, default=12, help='Sequence length for RNN input')
+    parser.add_argument('--seq_len', type=int, default=24, help='Sequence length for RNN input')
     parser.add_argument('--hidden_size', type=int, default=32, help='Number of hidden RNN units')
     parser.add_argument('--num_layers', type=int, default=1, help='Number of RNN layers')
     parser.add_argument('--max_epochs', type=int, default=200, help='Maximum number of epochs to train for')
@@ -28,16 +33,16 @@ if __name__ == '__main__':
     )
     dataset = dataset_builder.build_dataset()
 
-    # train_idx = val_idx = test_idx = None
-    # if os.path.exists("../data/train_idx.npy") and os.path.exists("../data/val_idx.npy") and os.path.exists("../data/test_idx.npy"):
-    #     train_idx = np.load("../data/train_idx.npy")
-    #     val_idx = np.load("../data/val_idx.npy")
-    #     test_idx = np.load("../data/test_idx.npy")
-    # else:
-    train_idx, val_idx, test_idx = dataset_builder.split_dataset(0.8, 0.1)
-    np.save("../data/train_idx.npy", train_idx)
-    np.save("../data/val_idx.npy", val_idx)
-    np.save("../data/test_idx.npy", test_idx)
+    train_idx = val_idx = test_idx = None
+    if os.path.exists("../data/train_idx.npy") and os.path.exists("../data/val_idx.npy") and os.path.exists("../data/test_idx.npy"):
+        train_idx = np.load("../data/train_idx.npy")
+        val_idx = np.load("../data/val_idx.npy")
+        test_idx = np.load("../data/test_idx.npy")
+    else:
+        train_idx, val_idx, test_idx = dataset_builder.split_dataset(args.train_ratio, args.val_ratio)
+        np.save("../data/train_idx.npy", train_idx)
+        np.save("../data/val_idx.npy", val_idx)
+        np.save("../data/test_idx.npy", test_idx)
 
     train_dataset, val_dataset, test_dataset = dataset_builder.build_split_datasets(train_idx, val_idx, test_idx)
 

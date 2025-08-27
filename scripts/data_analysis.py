@@ -66,7 +66,7 @@ def plot_predicted_actual(predictions: list, actual: list) -> None:
     plt.figure(figsize=(10, 6))
     plt.plot(predictions, label='Predicted', color='blue')
     plt.plot(actual, label='Actual', color='orange')
-    plt.xlabel('Epochs')
+    plt.xlabel('Time Steps')
     plt.ylabel('PV Generation')
     plt.title('Predicted vs Actual PV Generation')
     plt.legend()

@@ -7,6 +7,4 @@
 /dataSources/
 /dataSources.local.xml
 .venv/
-output/*
-data/*
 .idea

@@ -1,14 +1,17 @@
+''' Dataset class and builder. Builder preprocesses data (filter out negative PV values, outliers),
+merges the datasets on timestamp, interpolates NAN values.
+Running the script plots boxplots for pv_history, weather_measurements and ghi_forecast datasets.
+'''
+
 from typing import List
 
+import numpy as np
 import pandas as pd
 import torch
-from mpmath.calculus.calculus import defun
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, random_split, Subset
-import numpy as np
+from torch.utils.data import Dataset, Subset
 
-from scripts.data_analysis import compute_statistics, plot_timestamped_data, analyze_pv_history, \
+from scripts.data_analysis import analyze_pv_history, \
     analyze_weather_measurements
 
 
@@ -50,32 +53,14 @@ class PVDataset(Dataset):
             start = 0
         len = end - start + 1
         feature_seq = torch.zeros((self.seq_len, self.number_of_features))
+        targets = torch.zeros((self.seq_len, 1))
         feature_seq[self.seq_len - len:] = self.features[start:end + 1]
-        target = self.targets[end]
+        targets[self.seq_len - len:] = self.targets[start:end + 1]
 
         # feature_seq[:, :5] = torch.tensor(self.scalerX.transform(feature_seq[:, :5]), dtype=torch.float32) if self.scalerX else feature_seq
         # target = torch.tensor(self.scalerY.transform(target.reshape(1, -1)).flatten(), dtype=torch.float32) if self.scalerY else target
 
-        return feature_seq, target
-
-class PVDayDataset(Dataset):
-    def __init__(self, timestamps: np.ndarray, features: np.ndarray, targets: np.ndarray):
-        self.timestamps = timestamps
-        self.features = torch.tensor(features, dtype=torch.float32)
-        self.targets = torch.tensor(targets, dtype=torch.float32)
-
-        # index by days: store unique days
-        self.days = self.timestamps.dt.day_of_year.unique()
-
-    def __len__(self):
-        return len(self.days)
-
-    def __getitem__(self, idx):
-        features = self.features[self.timestamps.dt.day_of_year.values == self.days[idx]]
-        targets = self.targets[self.timestamps.dt.day_of_year.values == self.days[idx]]
-
-        return features, targets
-
+        return feature_seq, targets
 
 class DatasetBuilder:
     '''
@@ -88,9 +73,15 @@ class DatasetBuilder:
         self.ghi_forecast_fp = ghi_forecast_fp
         self.seq_len = seq_len
 
-    def build_dataset(self):
+    def build_dataset(self, preprocessing: bool =True) -> PVDataset | None:
         '''
         Preprocess subdatasets, synchronize and merge them into one dataset.
+
+        Parameters
+        ----------
+        preprocessing : bool, optional
+            Whether to preprocess the datasets, by default True
+
         :return:
         dataset: PVDataset object
         '''
@@ -98,29 +89,34 @@ class DatasetBuilder:
         self.weather_measurements_raw = pd.read_csv(self.weather_measurements_fp, parse_dates=['time'])
         self.ghi_forecasts_raw = pd.read_parquet(self.ghi_forecast_fp)
 
-        self.preprocess_pv_history()
-        self.preprocess_weather_measurements()
-        self.preprocess_ghi_forecasts()
+        self.pv_history = self.pv_history_raw.copy()
+        self.weather_measurements = self.weather_measurements_raw.copy()
+        self.ghi_forecasts = self.ghi_forecasts_raw.copy()
 
-        datasetDf = self.merge_datasets()
+        if preprocessing:
+            self.preprocess_pv_history()
+            self.preprocess_weather_measurements()
+            self.preprocess_ghi_forecasts()
 
-        self.feature_cols_without_time_features = ["pv_generation", "cglo", "ff", "tl", "ghi_forecast"]
+            datasetDf = self.merge_datasets()
 
-        self.feature_cols = ["pv_generation", "cglo", "ff", "tl", "ghi_forecast", "hour_cos_pv", "hour_sin_pv",
-                             "day_cos_pv", "day_sin_pv", "hour_cos_weather", "hour_sin_weather", "day_cos_weather",
-                             "day_sin_weather", "hour_cos_ghi", "hour_sin_ghi", "day_cos_ghi", "day_sin_ghi"]
+            self.feature_cols_without_time_features = ["pv_generation", "cglo", "ff", "tl", "ghi_forecast"]
+
+            self.feature_cols = ["pv_generation", "cglo", "ff", "tl", "ghi_forecast", "hour_cos_pv", "hour_sin_pv",
+                                 "day_cos_pv", "day_sin_pv", "hour_cos_weather", "hour_sin_weather", "day_cos_weather",
+                                 "day_sin_weather", "hour_cos_ghi", "hour_sin_ghi", "day_cos_ghi", "day_sin_ghi"]
 
 
-        self.number_of_features = len(self.feature_cols)
+            self.number_of_features = len(self.feature_cols)
 
-        self.X = datasetDf[self.feature_cols]
-        self.Y = datasetDf[["targets"]]
+            self.X = datasetDf[self.feature_cols]
+            self.Y = datasetDf[["targets"]]
 
-        # get timestamps column
-        self.timestamps = datasetDf["time"]
+            # get timestamps column
+            self.timestamps = datasetDf["time"]
 
-        self.dataset = PVDataset(self.X.values, self.Y.values,  seq_len=self.seq_len)
-        return self.dataset
+            self.dataset = PVDataset(self.X.values, self.Y.values,  seq_len=self.seq_len)
+            return self.dataset
 
     def split_dataset(self, train_ratio: float, val_ratio: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         '''
@@ -157,23 +153,6 @@ class DatasetBuilder:
         self.X_train, self.Y_train = self.X.iloc[train_idx], self.Y.iloc[train_idx]
         self.X_validation, self.Y_validation = self.X.iloc[val_idx], self.Y.iloc[val_idx]
         self.X_test, self.Y_test = self.X.iloc[test_idx], self.Y.iloc[test_idx]
-
-        train_timestamps = self.timestamps.iloc[train_idx]
-        val_timestamps = self.timestamps.iloc[val_idx]
-        test_timestamps = self.timestamps.iloc[test_idx]
-
-        # self.X_train, self.X_temp, self.Y_train, self.Y_temp = train_test_split(self.X, self.Y, train_size=train_split, shuffle=False)
-        # val_ratio_adjusted = val_split / (1 - train_split)
-        # self.X_validation, self.X_test, self.Y_validation, self.Y_test = train_test_split(self.X_temp, self.Y_temp, train_size=val_ratio_adjusted, shuffle=False)
-
-        # self.X_train = self.train_dataset[self.feature_cols]
-        # self.Y_train = self.train_dataset["targets"]
-        #
-        # self.X_validation = self.validation_dataset[self.feature_cols]
-        # self.Y_validation = self.validation_dataset["targets"]
-        #
-        # self.X_test = self.test_dataset[self.feature_cols]
-        # self.Y_test = self.test_dataset["targets"]
 
         scalerX, scalerY = self.normalize_data()
         self.dataset.scalerX = scalerX
@@ -218,7 +197,6 @@ class DatasetBuilder:
         '''
         # set timestamp as index
         # set negative values to NA
-        self.pv_history = self.pv_history_raw.copy()
         self.pv_history[self.pv_history['pv_generation'] < 0] = np.nan
         Q1 = self.pv_history["pv_generation"].quantile(0.25)
         Q3 = self.pv_history["pv_generation"].quantile(0.75)
@@ -316,8 +294,6 @@ if __name__ == "__main__":
         seq_len=12
     )
 
-
-    dataset = dataset_builder.build_dataset()
-
+    dataset_builder.build_dataset(preprocessing=False)
     analyze_pv_history(dataset_builder.pv_history_raw)
     analyze_weather_measurements(dataset_builder.weather_measurements_raw)
